@@ -1,0 +1,8 @@
+fyers-apiv3
+pandas
+numpy
+requests
+python-dotenv
+APScheduler
+pytz
+ta
