@@ -125,10 +125,36 @@
               <option value="NSE:NIFTYBANK-INDEX">NSE:NIFTYBANK-INDEX</option>
             </select>
           </div>
+
+          <!-- Date mode toggle -->
           <div class="form-group">
-            <label class="form-label">Date</label>
-            <input type="date" class="form-control" id="bt-date" />
+            <label class="form-label">Date Mode</label>
+            <div class="date-mode-toggle">
+              <button class="mode-btn active" id="mode-single" onclick="setDateMode('single')">Single Day</button>
+              <button class="mode-btn" id="mode-range" onclick="setDateMode('range')">Date Range</button>
+            </div>
           </div>
+
+          <!-- Single date -->
+          <div id="date-single-wrap">
+            <div class="form-group">
+              <label class="form-label">Date</label>
+              <input type="date" class="form-control" id="bt-date" />
+            </div>
+          </div>
+
+          <!-- Date range -->
+          <div id="date-range-wrap" class="hidden">
+            <div class="form-group">
+              <label class="form-label">From Date</label>
+              <input type="date" class="form-control" id="bt-date-from" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">To Date</label>
+              <input type="date" class="form-control" id="bt-date-to" />
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Candle Resolution (min)</label>
             <select class="form-control" id="bt-resolution">
@@ -169,6 +195,15 @@
               <div class="result-item">
                 <div class="result-label">Candles</div>
                 <div class="result-value" id="bt-candles">—</div>
+              </div>
+              <!-- Range extras — hidden for single-day -->
+              <div class="result-item" id="bt-days-item" style="display:none">
+                <div class="result-label">Days Run</div>
+                <div class="result-value" id="bt-days">—</div>
+              </div>
+              <div class="result-item" id="bt-avgpnl-item" style="display:none">
+                <div class="result-label">Avg PnL/Day</div>
+                <div class="result-value" id="bt-avgpnl">—</div>
               </div>
             </div>
           </div>

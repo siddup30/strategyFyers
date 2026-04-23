@@ -33,6 +33,13 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+# ANSI escape code stripper (backtest output uses color codes)
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[mGKHF]")
+
+def strip_ansi(text: str) -> str:
+    """Remove ANSI terminal color codes from a string."""
+    return _ANSI_RE.sub("", text)
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).parent.parent          # fyers_trading_bot/
 STATIC_DIR = Path(__file__).parent / "static"
@@ -301,22 +308,29 @@ async def stream_logs(request: Request, lines: int = 100):
 
 class BacktestRequest(BaseModel):
     symbol: str = "NSE:NIFTY50-INDEX"
-    date: str = ""          # YYYY-MM-DD, empty = today
-    resolution: int = 5     # candle timeframe in minutes
+    date: str = ""           # single day  YYYY-MM-DD
+    date_from: str = ""      # range start YYYY-MM-DD
+    date_to: str = ""        # range end   YYYY-MM-DD
+    resolution: int = 5      # candle timeframe in minutes
 
 
 @app.post("/api/backtest")
 def run_backtest(body: BacktestRequest):
     """Run the backtest script and return structured results."""
+    is_range = bool(body.date_from and body.date_to)
     date_str = body.date or datetime.now().strftime("%Y-%m-%d")
 
     cmd = [
         sys.executable,
         str(BASE_DIR / "backtest.py"),
         "--symbol", body.symbol,
-        "--date", date_str,
         "--resolution", str(body.resolution),
     ]
+
+    if is_range:
+        cmd += ["--from", body.date_from, "--to", body.date_to]
+    else:
+        cmd += ["--date", date_str]
 
     try:
         result = subprocess.run(
@@ -327,26 +341,50 @@ def run_backtest(body: BacktestRequest):
             timeout=120,
             env={**os.environ, "PYTHONPATH": str(BASE_DIR.parent)},
         )
-        output = result.stdout + result.stderr
+        raw = result.stdout + result.stderr
+        # Strip ANSI color codes before parsing — backtest uses colored output
+        output = strip_ansi(raw)
 
-        # Parse key values from output
-        trades_match = re.search(r"Trades:\s*(\d+)", output)
-        pnl_match = re.search(r"Net PnL:\s*₹([+\-\d.,]+)", output)
+        # Parse key values from cleaned output
+        trades_match  = re.search(r"Trades:\s*(\d+)", output)
+        pnl_match     = re.search(r"Net PnL:\s*[₹]?([+\-][\d,]+\.\d+|[\d,]+\.\d+)", output)
         winners_match = re.search(r"Winners:\s*(\d+)", output)
-        losers_match = re.search(r"Losers:\s*(\d+)", output)
+        losers_match  = re.search(r"Losers:\s*(\d+)", output)
         winrate_match = re.search(r"Win Rate:\s*([\d.]+)%", output)
         candles_match = re.search(r"Loaded (\d+) candles", output)
+
+        net_pnl = 0.0
+        if pnl_match:
+            try:
+                net_pnl = float(pnl_match.group(1).replace(",", ""))
+            except ValueError:
+                pass
+
+        # Count trading days from range
+        days_run = 1
+        if is_range:
+            from datetime import timedelta
+            try:
+                d0 = datetime.strptime(body.date_from, "%Y-%m-%d")
+                d1 = datetime.strptime(body.date_to, "%Y-%m-%d")
+                days_run = sum(
+                    1 for i in range((d1 - d0).days + 1)
+                    if (d0 + timedelta(days=i)).weekday() < 5
+                )
+            except Exception:
+                pass
 
         return {
             "success": result.returncode == 0,
             "symbol": body.symbol,
-            "date": date_str,
+            "date": date_str if not is_range else f"{body.date_from} → {body.date_to}",
             "resolution": body.resolution,
+            "days_run": days_run,
             "candles_loaded": int(candles_match.group(1)) if candles_match else 0,
-            "trades": int(trades_match.group(1)) if trades_match else 0,
-            "net_pnl": float(pnl_match.group(1).replace(",", "")) if pnl_match else 0.0,
-            "winners": int(winners_match.group(1)) if winners_match else 0,
-            "losers": int(losers_match.group(1)) if losers_match else 0,
+            "trades":   int(trades_match.group(1))   if trades_match  else 0,
+            "net_pnl":  net_pnl,
+            "winners":  int(winners_match.group(1))  if winners_match else 0,
+            "losers":   int(losers_match.group(1))   if losers_match  else 0,
             "win_rate": float(winrate_match.group(1)) if winrate_match else 0.0,
             "raw_output": output,
         }

@@ -199,12 +199,33 @@ function clearLog() {
   document.getElementById('log-body').innerHTML = '';
 }
 
+// ── Date mode toggle ─────────────────────────────────────────────
+let _dateMode = 'single';
+
+function setDateMode(mode) {
+  _dateMode = mode;
+  document.getElementById('mode-single').classList.toggle('active', mode === 'single');
+  document.getElementById('mode-range').classList.toggle('active', mode === 'range');
+  document.getElementById('date-single-wrap').classList.toggle('hidden', mode === 'range');
+  document.getElementById('date-range-wrap').classList.toggle('hidden', mode === 'single');
+}
+
 // ── Backtest ───────────────────────────────────────────────────────
 async function runBacktest() {
-  const symbol = document.getElementById('bt-symbol').value;
-  const date = document.getElementById('bt-date').value;
+  const symbol     = document.getElementById('bt-symbol').value;
   const resolution = parseInt(document.getElementById('bt-resolution').value);
+  const isRange    = _dateMode === 'range';
 
+  const date      = isRange ? '' : (document.getElementById('bt-date').value || '');
+  const date_from = isRange ? document.getElementById('bt-date-from').value : '';
+  const date_to   = isRange ? document.getElementById('bt-date-to').value   : '';
+
+  if (isRange && (!date_from || !date_to)) {
+    showToast('Please select both From and To dates', 'error'); return;
+  }
+  if (isRange && date_from > date_to) {
+    showToast('From date must be before To date', 'error'); return;
+  }
   document.getElementById('btn-run-bt').disabled = true;
   document.getElementById('bt-results').classList.add('hidden');
   document.getElementById('bt-raw-output').classList.add('hidden');
@@ -214,7 +235,7 @@ async function runBacktest() {
     const r = await fetch(`${API}/api/backtest`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ symbol, date, resolution }),
+      body: JSON.stringify({ symbol, date, date_from, date_to, resolution }),
     });
     const d = await r.json();
 
@@ -228,11 +249,27 @@ async function runBacktest() {
     pnlEl.textContent = `₹${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`;
     pnlEl.className = 'result-value ' + (pnl >= 0 ? 'green' : 'red');
 
-    document.getElementById('bt-trades').textContent = d.trades;
+    document.getElementById('bt-trades').textContent  = d.trades;
     document.getElementById('bt-winrate').textContent = `${d.win_rate?.toFixed(1)}%`;
     document.getElementById('bt-winners').textContent = d.winners;
-    document.getElementById('bt-losers').textContent = d.losers;
+    document.getElementById('bt-losers').textContent  = d.losers;
     document.getElementById('bt-candles').textContent = d.candles_loaded;
+
+    // Range-only extras
+    const daysItem   = document.getElementById('bt-days-item');
+    const avgPnlItem = document.getElementById('bt-avgpnl-item');
+    if (d.days_run > 1) {
+      daysItem.style.display   = '';
+      avgPnlItem.style.display = '';
+      document.getElementById('bt-days').textContent = d.days_run;
+      const avg = pnl / d.days_run;
+      const avgEl = document.getElementById('bt-avgpnl');
+      avgEl.textContent = `₹${avg >= 0 ? '+' : ''}${avg.toFixed(2)}`;
+      avgEl.className = 'result-value ' + (avg >= 0 ? 'green' : 'red');
+    } else {
+      daysItem.style.display   = 'none';
+      avgPnlItem.style.display = 'none';
+    }
 
     // Raw output
     const raw = document.getElementById('bt-raw-output');
@@ -460,9 +497,13 @@ function showToast(msg, type = 'info') {
 
 // ── Init ──────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
-  // Set default backtest date to today
+  // Set default dates
   const today = new Date().toISOString().slice(0, 10);
-  document.getElementById('bt-date').value = today;
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+
+  document.getElementById('bt-date').value      = today;
+  document.getElementById('bt-date-from').value = weekAgo;
+  document.getElementById('bt-date-to').value   = today;
 
   startStatusPolling();
   startLogStream();

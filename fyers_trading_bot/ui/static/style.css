@@ -277,6 +277,35 @@ select.form-control option { background: var(--bg-surface); }
 
 .form-card { display: flex; flex-direction: column; gap: 0; }
 
+/* ── Date mode toggle ───────────────────────────────────────────── */
+.date-mode-toggle {
+  display: flex;
+  background: var(--bg-base);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+  gap: 3px;
+}
+.mode-btn {
+  flex: 1;
+  padding: 0.35rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+.mode-btn.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+.mode-btn:not(.active):hover { color: var(--text-primary); }
+
 /* ── Backtest results ────────────────────────────────────────────── */
 .result-grid {
   display: grid;
