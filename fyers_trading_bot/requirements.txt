@@ -6,3 +6,5 @@ python-dotenv
 APScheduler
 pytz
 ta
+fastapi
+uvicorn[standard]

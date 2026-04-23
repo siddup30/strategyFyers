@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StrategyFyers — Trading Dashboard</title>
+  <meta name="description" content="Real-time SMC trading bot dashboard for Fyers — monitor positions, run backtests, and manage your algo trading strategy." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- ── Sidebar ──────────────────────────────────────────────── -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+      <span class="brand-icon">📈</span>
+      <span class="brand-name">StrategyFyers</span>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item active" data-tab="dashboard" id="nav-dashboard">
+        <span class="nav-icon">⚡</span> Dashboard
+      </a>
+      <a href="#" class="nav-item" data-tab="backtest" id="nav-backtest">
+        <span class="nav-icon">📊</span> Backtest
+      </a>
+      <a href="#" class="nav-item" data-tab="trades" id="nav-trades">
+        <span class="nav-icon">📋</span> Trades
+      </a>
+      <a href="#" class="nav-item" data-tab="config" id="nav-config">
+        <span class="nav-icon">⚙️</span> Config
+      </a>
+      <a href="#" class="nav-item" data-tab="auth" id="nav-auth">
+        <span class="nav-icon">🔐</span> Auth
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="token-badge" id="sidebar-token-badge">
+        <span class="badge-dot" id="sidebar-token-dot"></span>
+        <span id="sidebar-token-label">Checking token…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────── -->
+  <main class="main-content">
+
+    <!-- ══ Dashboard Tab ══ -->
+    <div class="tab-panel active" id="tab-dashboard">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Dashboard</h1>
+          <p class="page-subtitle">Live bot status and real-time log stream</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-success" id="btn-start-dry" onclick="startBot(true)">▶ DRY RUN</button>
+          <button class="btn btn-danger-outline" id="btn-start-live" onclick="startBot(false)">▶ LIVE</button>
+          <button class="btn btn-secondary" id="btn-stop" onclick="stopBot()">⏹ Stop</button>
+        </div>
+      </div>
+
+      <!-- Status Cards -->
+      <div class="cards-grid">
+        <div class="card" id="card-bot-status">
+          <div class="card-label">Bot Status</div>
+          <div class="card-value" id="status-bot">—</div>
+          <div class="card-sub" id="status-mode">—</div>
+        </div>
+        <div class="card">
+          <div class="card-label">WebSocket</div>
+          <div class="card-value" id="status-ws">—</div>
+          <div class="card-sub" id="status-ws-sub">Connecting…</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Open Positions</div>
+          <div class="card-value" id="status-positions">0</div>
+          <div class="card-sub">Active trades</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Today's Trades</div>
+          <div class="card-value" id="status-trades">0</div>
+          <div class="card-sub">Executed today</div>
+        </div>
+        <div class="card pnl-card">
+          <div class="card-label">Today's PnL</div>
+          <div class="card-value" id="status-pnl">₹0.00</div>
+          <div class="card-sub">Unrealised + Realised</div>
+        </div>
+      </div>
+
+      <!-- Live Log -->
+      <div class="log-panel">
+        <div class="log-header">
+          <span class="log-title">📜 Live Log Stream</span>
+          <div class="log-controls">
+            <label class="toggle-wrap">
+              <input type="checkbox" id="log-autoscroll" checked />
+              <span class="toggle-label">Auto-scroll</span>
+            </label>
+            <button class="btn btn-xs btn-secondary" onclick="clearLog()">Clear</button>
+          </div>
+        </div>
+        <div class="log-body" id="log-body"></div>
+      </div>
+    </div>
+
+    <!-- ══ Backtest Tab ══ -->
+    <div class="tab-panel" id="tab-backtest">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Backtest</h1>
+          <p class="page-subtitle">Simulate strategy on historical data</p>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <!-- Form -->
+        <div class="card form-card">
+          <h2 class="card-title">Parameters</h2>
+          <div class="form-group">
+            <label class="form-label">Symbol</label>
+            <select class="form-control" id="bt-symbol">
+              <option value="NSE:NIFTY50-INDEX">NSE:NIFTY50-INDEX</option>
+              <option value="NSE:NIFTYBANK-INDEX">NSE:NIFTYBANK-INDEX</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" class="form-control" id="bt-date" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Candle Resolution (min)</label>
+            <select class="form-control" id="bt-resolution">
+              <option value="1">1 min</option>
+              <option value="5" selected>5 min</option>
+              <option value="15">15 min</option>
+            </select>
+          </div>
+          <button class="btn btn-primary btn-full" id="btn-run-bt" onclick="runBacktest()">▶ Run Backtest</button>
+        </div>
+
+        <!-- Results -->
+        <div class="card result-card" id="bt-results-card">
+          <h2 class="card-title">Results</h2>
+          <div id="bt-loading" class="loading-msg hidden">⏳ Running backtest…</div>
+          <div id="bt-results" class="hidden">
+            <div class="result-grid">
+              <div class="result-item">
+                <div class="result-label">Net PnL</div>
+                <div class="result-value" id="bt-pnl">—</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Trades</div>
+                <div class="result-value" id="bt-trades">—</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Win Rate</div>
+                <div class="result-value" id="bt-winrate">—</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Winners</div>
+                <div class="result-value green" id="bt-winners">—</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Losers</div>
+                <div class="result-value red" id="bt-losers">—</div>
+              </div>
+              <div class="result-item">
+                <div class="result-label">Candles</div>
+                <div class="result-value" id="bt-candles">—</div>
+              </div>
+            </div>
+          </div>
+          <div id="bt-raw-output" class="log-body bt-log hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Trades Tab ══ -->
+    <div class="tab-panel" id="tab-trades">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Trade History</h1>
+          <p class="page-subtitle">All trades from the database</p>
+        </div>
+        <div class="header-actions">
+          <select class="form-control form-control-sm" id="trades-filter" onchange="loadTrades()">
+            <option value="ALL">All Trades</option>
+            <option value="OPEN">Open</option>
+            <option value="CLOSED">Closed</option>
+          </select>
+          <button class="btn btn-secondary" onclick="loadTrades()">↻ Refresh</button>
+        </div>
+      </div>
+
+      <div class="card table-card">
+        <div class="table-wrap">
+          <table class="data-table" id="trades-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Strategy</th>
+                <th>Dir</th>
+                <th>Entry</th>
+                <th>SL</th>
+                <th>Target</th>
+                <th>Exit</th>
+                <th>Qty</th>
+                <th>PnL</th>
+                <th>Reason</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="trades-body">
+              <tr><td colspan="13" class="empty-msg">No trades yet</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ Config Tab ══ -->
+    <div class="tab-panel" id="tab-config">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Configuration</h1>
+          <p class="page-subtitle">Changes apply on next bot Start</p>
+        </div>
+        <div class="header-actions">
+          <button class="btn btn-primary" id="btn-save-config" onclick="saveConfig()">💾 Save Config</button>
+        </div>
+      </div>
+
+      <div class="config-grid" id="config-grid">
+        <!-- filled by JS -->
+      </div>
+
+      <div class="alert alert-info" id="config-saved-msg" style="display:none">
+        ✅ Config saved — will apply on next bot Start.
+      </div>
+    </div>
+
+    <!-- ══ Auth Tab ══ -->
+    <div class="tab-panel" id="tab-auth">
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">Authentication</h1>
+          <p class="page-subtitle">Fyers API token management</p>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h2 class="card-title">Token Status</h2>
+          <div class="token-status-block" id="token-status-block">
+            <div class="token-row">
+              <span class="token-key">Valid</span>
+              <span class="token-val" id="auth-valid">—</span>
+            </div>
+            <div class="token-row">
+              <span class="token-key">Generated</span>
+              <span class="token-val" id="auth-date">—</span>
+            </div>
+            <div class="token-row">
+              <span class="token-key">User</span>
+              <span class="token-val" id="auth-user">—</span>
+            </div>
+            <div class="token-row">
+              <span class="token-key">Today</span>
+              <span class="token-val" id="auth-today">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2 class="card-title">Generate New Token</h2>
+          <p class="card-desc">Click the button below to get the Fyers auth URL, log in, then paste the auth code.</p>
+
+          <button class="btn btn-primary btn-full" onclick="getAuthUrl()" id="btn-get-auth-url">
+            🔗 Open Auth URL
+          </button>
+
+          <div class="auth-url-block hidden" id="auth-url-block">
+            <p class="form-label" style="margin-top:1rem">Copy and open this URL in your browser:</p>
+            <div class="auth-url-box" id="auth-url-text"></div>
+          </div>
+
+          <div class="form-group" style="margin-top:1.5rem">
+            <label class="form-label">Paste Auth Code here</label>
+            <input type="text" class="form-control" id="auth-code-input" placeholder="eyJhbGci..." />
+          </div>
+          <button class="btn btn-success btn-full" onclick="submitAuthCode()">✅ Submit Auth Code</button>
+          <div class="alert" id="auth-result-msg" style="display:none;margin-top:1rem"></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
