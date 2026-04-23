@@ -345,18 +345,22 @@ def run_backtest(body: BacktestRequest):
         # Strip ANSI color codes before parsing — backtest uses colored output
         output = strip_ansi(raw)
 
-        # Parse key values from cleaned output
-        trades_match  = re.search(r"Trades:\s*(\d+)", output)
-        pnl_match     = re.search(r"Net PnL:\s*[₹]?([+\-][\d,]+\.\d+|[\d,]+\.\d+)", output)
-        winners_match = re.search(r"Winners:\s*(\d+)", output)
-        losers_match  = re.search(r"Losers:\s*(\d+)", output)
-        winrate_match = re.search(r"Win Rate:\s*([\d.]+)%", output)
-        candles_match = re.search(r"Loaded (\d+) candles", output)
+        # Use findall + last match so multi-day summary totals override per-day values
+        def last(pattern, text, group=1):
+            matches = re.findall(pattern, text)
+            return matches[-1] if matches else None
+
+        trades_raw  = last(r"(?:Total\s+)?Trades:\s*(\d+)",   output)
+        pnl_raw     = last(r"(?:Total|Net)\s+PnL:\s*[₹]?([+\-][\d,]+\.\d+|[\d,]+\.\d+)", output)
+        winners_raw = last(r"Winners:\s*(\d+)",               output)
+        losers_raw  = last(r"Losers:\s*(\d+)",                output)
+        winrate_raw = last(r"Win Rate:\s*([\d.]+)%",           output)
+        candles_raw = last(r"Loaded (\d+) candles",            output)
 
         net_pnl = 0.0
-        if pnl_match:
+        if pnl_raw:
             try:
-                net_pnl = float(pnl_match.group(1).replace(",", ""))
+                net_pnl = float(pnl_raw.replace(",", ""))
             except ValueError:
                 pass
 
@@ -380,12 +384,12 @@ def run_backtest(body: BacktestRequest):
             "date": date_str if not is_range else f"{body.date_from} → {body.date_to}",
             "resolution": body.resolution,
             "days_run": days_run,
-            "candles_loaded": int(candles_match.group(1)) if candles_match else 0,
-            "trades":   int(trades_match.group(1))   if trades_match  else 0,
+            "candles_loaded": int(candles_raw) if candles_raw else 0,
+            "trades":   int(trades_raw)   if trades_raw  else 0,
             "net_pnl":  net_pnl,
-            "winners":  int(winners_match.group(1))  if winners_match else 0,
-            "losers":   int(losers_match.group(1))   if losers_match  else 0,
-            "win_rate": float(winrate_match.group(1)) if winrate_match else 0.0,
+            "winners":  int(winners_raw)  if winners_raw else 0,
+            "losers":   int(losers_raw)   if losers_raw  else 0,
+            "win_rate": float(winrate_raw) if winrate_raw else 0.0,
             "raw_output": output,
         }
     except subprocess.TimeoutExpired:
