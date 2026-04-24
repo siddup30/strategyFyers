@@ -71,6 +71,11 @@ class WebSocketClient:
         Args:
             message: Raw message from the Fyers WebSocket.
         """
+        # Reset watchdog on ANY message — including ltp=0 heartbeats/keepalives.
+        # Previously only valid price ticks reset this, causing false watchdog
+        # fires during quiet market periods when Fyers sends non-price messages.
+        self._last_tick_time = time.time()
+
         try:
             if isinstance(message, list):
                 for tick in message:
@@ -95,8 +100,8 @@ class WebSocketClient:
         timestamp = tick.get("exch_feed_time", time.time())
 
         if symbol and ltp > 0 and self._on_tick:
-            self._last_tick_time = time.time()  # watchdog update
             self._on_tick(symbol, ltp, volume, timestamp)
+
 
     def _on_connect(self) -> None:
         """Handle WebSocket connection event."""
