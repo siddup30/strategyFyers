@@ -171,8 +171,8 @@ def get_auth_url():
     sys.path.insert(0, str(BASE_DIR.parent))
     os.chdir(str(BASE_DIR))
     try:
-        from auth.fyers_auth import get_auth_url as _get_url
-        url = _get_url()
+        from auth.fyers_auth import generate_auth_url
+        url = generate_auth_url()
         return {"url": url}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -188,9 +188,21 @@ def submit_auth_code(body: AuthCodeRequest):
     sys.path.insert(0, str(BASE_DIR.parent))
     os.chdir(str(BASE_DIR))
     try:
-        from auth.fyers_auth import exchange_auth_code
-        result = exchange_auth_code(body.auth_code)
-        return {"success": True, "user": result.get("user", "")}
+        from auth.fyers_auth import get_access_token, _save_token, _validate_token
+        token = get_access_token(body.auth_code)
+        _save_token(token)
+        # Try to get the user's name from profile
+        user = ""
+        try:
+            from config import FYERS_CLIENT_ID
+            from fyers_apiv3 import fyersModel
+            fyers = fyersModel.FyersModel(client_id=FYERS_CLIENT_ID, is_async=False, token=token, log_path="")
+            resp = fyers.get_profile()
+            if resp.get("s") == "ok":
+                user = resp.get("data", {}).get("name", "")
+        except Exception:
+            pass
+        return {"success": True, "user": user}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

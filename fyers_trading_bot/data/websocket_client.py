@@ -135,8 +135,22 @@ class WebSocketClient:
         logger.warning("WebSocket disconnected.")
         self._connected = False
 
+    def _close_ws(self) -> None:
+        """Safely close the current WebSocket socket and clear the reference."""
+        if self._ws is not None:
+            try:
+                self._ws.close_connection()
+            except Exception as e:
+                logger.debug("WS close (ignored): %s", e)
+            self._ws = None
+
     def _connect(self) -> None:
         """Create one WebSocket session and block until it closes or data freezes."""
+        # Always close the previous socket before creating a new one.
+        # Without this, the old FyersDataSocket ghost-thread keeps running and
+        # blocks tick delivery on the re-subscription.
+        self._close_ws()
+
         try:
             self._ws = data_ws.FyersDataSocket(
                 access_token=f"{FYERS_CLIENT_ID}:{self._access_token}",
@@ -150,10 +164,15 @@ class WebSocketClient:
                 on_message=self._on_message,
             )
             self._ws.connect()
-            self._last_tick_time = time.time()
 
-            # Watchdog: if no tick for 90s, treat as dead and reconnect
+            # Give the subscription 12s to warm up before the watchdog starts
+            # counting — avoids false timeouts immediately after connect.
+            WARMUP_SECONDS = 12
             WATCHDOG_SECONDS = 90
+            self._last_tick_time = time.time()
+            time.sleep(WARMUP_SECONDS)
+
+            # Watchdog: if no tick for 90s after warm-up, treat as dead
             while self._running and self._connected:
                 time.sleep(5)
                 stale = time.time() - self._last_tick_time
@@ -172,6 +191,8 @@ class WebSocketClient:
             self._connect()
             if not self._running:
                 break
+            # retry_count is reset to 0 in _on_connect on successful handshake,
+            # so increment only matters for consecutive failures without connect.
             self._retry_count += 1
             if self._retry_count > MAX_RETRIES:
                 msg = f"WebSocket failed after {MAX_RETRIES} retries. Manual restart needed."
